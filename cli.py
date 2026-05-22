@@ -1284,6 +1284,567 @@
 
 # phase 11
 
+# import sys
+# import logging
+# import argparse
+
+# from rich.console import Console
+# from rich.panel import Panel
+# from rich.table import Table
+# from rich.text import Text
+
+# from bot.client import BinanceFuturesClient
+# from bot.config import load_settings
+# from bot.orders import place_order
+
+# from bot.models import OrderRequest
+# from bot.validators import validate_order_request
+
+# from bot.exceptions import (
+#     ValidationError,
+#     ConfigurationError,
+#     AuthenticationError,
+#     NetworkError,
+#     RequestTimeoutError,
+#     OrderPlacementError,
+#     BinanceClientError,
+# )
+
+
+# # =========================================================
+# # Console + Logger
+# # =========================================================
+
+# console = Console()
+
+# logger = logging.getLogger(__name__)
+
+
+# # =========================================================
+# # CLI Argument Parsing
+# # =========================================================
+
+# def parse_arguments() -> argparse.Namespace:
+#     """
+#     Parse CLI arguments.
+#     """
+
+#     parser = argparse.ArgumentParser(
+#         prog="trading-bot",
+#         description=(
+#             "Binance USDT-M Futures Testnet Trading Bot"
+#         ),
+#         epilog=(
+#             "Example:\n"
+#             "python cli.py "
+#             "--symbol BTCUSDT "
+#             "--side BUY "
+#             "--type MARKET "
+#             "--quantity 0.01"
+#         ),
+#         formatter_class=argparse.RawTextHelpFormatter,
+#     )
+
+#     parser.add_argument(
+#         "--symbol",
+#         required=True,
+#         help="Trading pair (e.g. BTCUSDT)",
+#     )
+
+#     parser.add_argument(
+#         "--side",
+#         required=True,
+#         help="Order side: BUY or SELL",
+#     )
+
+#     parser.add_argument(
+#         "--type",
+#         required=True,
+#         dest="order_type",
+#         help="Order type: MARKET or LIMIT",
+#     )
+
+#     parser.add_argument(
+#         "--quantity",
+#         required=True,
+#         help="Order quantity",
+#     )
+
+#     parser.add_argument(
+#         "--price",
+#         required=False,
+#         help="Limit price (required for LIMIT orders)",
+#     )
+
+#     parser.add_argument(
+#         "--verbose",
+#         action="store_true",
+#         help="Enable verbose debug logging.",
+#     )
+
+#     return parser.parse_args()
+
+
+# # =========================================================
+# # Rich Rendering Helpers
+# # =========================================================
+
+# def display_banner() -> None:
+#     """
+#     Display CLI application banner.
+#     """
+
+#     banner = Text(
+#         "Binance Futures Testnet Trading Bot",
+#         style="bold cyan",
+#         justify="center",
+#     )
+
+#     console.print()
+#     console.print(banner)
+#     console.rule(style="cyan")
+
+
+# def display_order_summary(
+#     order_request: OrderRequest,
+# ) -> None:
+#     """
+#     Display validated order summary.
+#     """
+
+#     table = Table(
+#         title="Order Summary",
+#         show_header=True,
+#         header_style="bold cyan",
+#     )
+
+#     table.add_column("Field", style="bold")
+#     table.add_column("Value")
+
+#     table.add_row(
+#         "Symbol",
+#         order_request.symbol,
+#     )
+
+#     table.add_row(
+#         "Side",
+#         order_request.side,
+#     )
+
+#     table.add_row(
+#         "Type",
+#         order_request.order_type,
+#     )
+
+#     table.add_row(
+#         "Quantity",
+#         str(order_request.quantity),
+#     )
+
+#     table.add_row(
+#         "Price",
+#         (
+#             str(order_request.price)
+#             if order_request.price is not None
+#             else "-"
+#         ),
+#     )
+
+#     console.print()
+#     console.print(table)
+
+
+# # =========================================================
+# # Status Styling
+# # =========================================================
+
+# def style_order_status(
+#     status: str,
+# ) -> Text:
+#     """
+#     Apply Rich styling to order status.
+#     """
+
+#     normalized_status = status.upper()
+
+#     color_map = {
+#         "FILLED": "green",
+#         "NEW": "yellow",
+#         "CANCELED": "red",
+#     }
+
+#     color = color_map.get(
+#         normalized_status,
+#         "white",
+#     )
+
+#     return Text(
+#         normalized_status,
+#         style=f"bold {color}",
+#     )
+
+
+# # =========================================================
+# # Response Rendering
+# # =========================================================
+
+# def display_order_response(
+#     response,
+# ) -> None:
+#     """
+#     Display normalized order response.
+#     """
+
+#     table = Table(
+#         title="Order Response",
+#         show_header=True,
+#         header_style="bold green",
+#     )
+
+#     table.add_column(
+#         "Field",
+#         style="bold",
+#     )
+
+#     table.add_column(
+#         "Value",
+#     )
+
+#     table.add_row(
+#         "Order ID",
+#         response.order_id,
+#     )
+
+#     table.add_row(
+#         "Status",
+#         style_order_status(
+#             response.status
+#         ),
+#     )
+
+#     table.add_row(
+#         "Executed Qty",
+#         str(response.executed_qty),
+#     )
+
+#     table.add_row(
+#         "Average Price",
+#         (
+#             str(response.avg_price)
+#             if response.avg_price is not None
+#             else "-"
+#         ),
+#     )
+
+#     table.add_row(
+#         "Symbol",
+#         response.symbol,
+#     )
+
+#     table.add_row(
+#         "Side",
+#         response.side,
+#     )
+
+#     table.add_row(
+#         "Type",
+#         response.order_type,
+#     )
+
+#     console.print()
+#     console.print(table)
+
+
+# def display_success_panel(message: str) -> None:
+#     """
+#     Display success message panel.
+#     """
+
+#     panel = Panel(
+#         f"[bold green]✓ {message}[/bold green]",
+#         title="Success",
+#         border_style="green",
+#     )
+
+#     console.print()
+#     console.print(panel)
+
+
+# # =========================================================
+# # Error Rendering
+# # =========================================================
+
+# def display_error_panel(
+#     title: str,
+#     message: str,
+# ) -> None:
+#     """
+#     Display formatted error panel.
+#     """
+
+#     console.print()
+
+#     console.print(
+#         Panel(
+#             message,
+#             title=title,
+#             border_style="red",
+#         )
+#     )
+
+
+# # =========================================================
+# # Main CLI Flow
+# # =========================================================
+
+# def main(settings) -> None:
+#     """
+#     CLI application entry point.
+#     """
+
+#     try:
+#         # =========================
+#         # Banner
+#         # =========================
+
+#         display_banner()
+
+#         # =========================
+#         # Parse CLI Arguments
+#         # =========================
+
+#         args = parse_arguments()
+
+#         logger.debug(
+#             "Parsed CLI arguments: %s",
+#             args,
+#         )
+
+#         # =========================
+#         # Validation + Model Creation
+#         # =========================
+
+#         order_request = validate_order_request(
+#             symbol=args.symbol,
+#             side=args.side,
+#             order_type=args.order_type,
+#             quantity=args.quantity,
+#             price=args.price,
+#         )
+
+#         logger.info(
+#             "Order request validated successfully."
+#         )
+
+#         logger.debug(
+#             "Validated OrderRequest: %s",
+#             order_request,
+#         )
+
+#         # =========================
+#         # Rich Output
+#         # =========================
+
+#         display_order_summary(order_request)
+
+#         # =====================================================
+#         # Client Initialization
+#         # =====================================================
+
+#         client = BinanceFuturesClient(
+#             settings=settings,
+#         )
+
+#         # =====================================================
+#         # Connectivity Checks
+#         # =====================================================
+
+#         client.ping()
+
+#         client.test_authentication()
+
+#         # =====================================================
+#         # Order Submission
+#         # =====================================================
+
+#         response = place_order(
+#             order_request=order_request,
+#             client=client,
+#         )
+
+#         # =====================================================
+#         # Success Rendering
+#         # =====================================================
+
+#         display_success_panel(
+#             "Binance Futures order submitted successfully."
+#         )
+
+#         display_order_response(
+#             response=response,
+#         )
+
+#         sys.exit(0)
+
+#     # =====================================================
+#     # Validation Errors
+#     # =====================================================
+
+#     except ValidationError as error:
+#         logger.warning(
+#             "Validation failure: %s",
+#             error,
+#         )
+
+#         display_error_panel(
+#             title="Validation Error",
+#             message=str(error),
+#         )
+
+#         sys.exit(1)
+
+#     # =====================================================
+#     # Configuration Errors
+#     # =====================================================
+
+#     except ConfigurationError as error:
+#         logger.error(
+#             "Configuration failure: %s",
+#             error,
+#         )
+
+#         display_error_panel(
+#             title="Configuration Error",
+#             message=str(error),
+#         )
+
+#         sys.exit(1)
+
+#     # =====================================================
+#     # Authentication Errors
+#     # =====================================================
+
+#     except AuthenticationError as error:
+#         logger.error(
+#             "Authentication failure: %s",
+#             error,
+#         )
+
+#         display_error_panel(
+#             title="Authentication Error",
+#             message=str(error),
+#         )
+
+#         sys.exit(1)
+
+#     # =====================================================
+#     # Timeout Errors
+#     # =====================================================
+
+#     except RequestTimeoutError as error:
+#         logger.error(
+#             "Request timeout: %s",
+#             error,
+#         )
+
+#         display_error_panel(
+#             title="Timeout Error",
+#             message=str(error),
+#         )
+
+#         sys.exit(1)
+
+#     # =====================================================
+#     # Network Errors
+#     # =====================================================
+
+#     except NetworkError as error:
+#         logger.error(
+#             "Network failure: %s",
+#             error,
+#         )
+
+#         display_error_panel(
+#             title="Network Error",
+#             message=str(error),
+#         )
+
+#         sys.exit(1)
+
+#     # =====================================================
+#     # Order Placement Errors
+#     # =====================================================
+
+#     except OrderPlacementError as error:
+#         logger.error(
+#             "Order placement failure: %s",
+#             error,
+#         )
+
+#         display_error_panel(
+#             title="Order Placement Error",
+#             message=str(error),
+#         )
+
+#         sys.exit(1)
+
+#     # =====================================================
+#     # Generic Binance Errors
+#     # =====================================================
+
+#     except BinanceClientError as error:
+#         logger.error(
+#             "Binance client failure: %s",
+#             error,
+#         )
+
+#         display_error_panel(
+#             title="Binance Client Error",
+#             message=str(error),
+#         )
+
+#         sys.exit(1)
+
+#     # =====================================================
+#     # Unexpected Failures
+#     # =====================================================
+
+#     except Exception:
+#         logger.exception(
+#             "Unexpected CLI failure."
+#         )
+
+#         display_error_panel(
+#             title="Unexpected Error",
+#             message=(
+#                 "An unexpected internal error occurred.\n"
+#                 "See logs for additional details."
+#             ),
+#         )
+
+#         sys.exit(2)
+
+
+# # =========================================================
+# # Script Entrypoint
+# # =========================================================
+
+# if __name__ == "__main__":
+#     settings = load_settings()
+#     main(settings=settings)
+
+
+
+
+
+
+
+
+
+
+
+# phase 12
+
 import sys
 import logging
 import argparse
@@ -1361,7 +1922,7 @@ def parse_arguments() -> argparse.Namespace:
         "--type",
         required=True,
         dest="order_type",
-        help="Order type: MARKET or LIMIT",
+        help="Order type: MARKET, LIMIT, or STOP",
     )
 
     parser.add_argument(
@@ -1373,7 +1934,19 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--price",
         required=False,
-        help="Limit price (required for LIMIT orders)",
+        help=(
+            "Limit price "
+            "(required for LIMIT and STOP orders)"
+        ),
+    )
+
+    parser.add_argument(
+        "--stop-price",
+        required=False,
+        help=(
+            "Stop trigger price "
+            "(required for STOP orders)."
+        ),
     )
 
     parser.add_argument(
@@ -1448,6 +2021,13 @@ def display_order_summary(
             if order_request.price is not None
             else "-"
         ),
+    )
+
+    table.add_row(
+        "Stop Price",
+        str(order_request.stop_price)
+        if order_request.stop_price is not None
+        else "-"
     )
 
     console.print()
@@ -1630,6 +2210,7 @@ def main(settings) -> None:
             order_type=args.order_type,
             quantity=args.quantity,
             price=args.price,
+            stop_price=args.stop_price,
         )
 
         logger.info(
